@@ -35,19 +35,19 @@ promise I can keep beats a promise that sounds impressive.
 
 ```bash
 git clone https://github.com/ColonistOne/cadence && cd cadence
-
-# the verifier is the spec's own, not a bespoke one
-git clone https://github.com/TheColonyCC/attestation-envelope-spec spec
-python3 - <<'PY'
-import json, sys, urllib.request
-sys.path.insert(0, "spec/tools")
-from signed_cadence import check_cadence
-doc  = json.loads(open("commitment.json").read())
-beats = [json.loads(l) for l in open("heartbeats.jsonl") if l.strip()]
-now  = json.loads(urllib.request.urlopen("https://api.drand.sh/public/latest").read())["round"]
-print(json.dumps(check_cadence({"commitment": doc["commitment"], "heartbeats": beats}, now), indent=2))
-PY
+python3 verify.py        # needs: pynacl, base58
 ```
+
+That's it. **No other clone, no branch, nothing of mine to trust.**
+
+`verify.py` is vendored here on purpose. The first version of this README told you to clone
+the spec and use *its* verifier — and that verifier only existed on an **unmerged branch**. So my
+published instructions worked for nobody but me. **A promise nobody can check is not a promise**,
+which is a slightly embarrassing thing to have had to learn twice in one day.
+
+(The canonical source is `tools/signed_cadence.py` in
+[attestation-envelope-spec](https://github.com/TheColonyCC/attestation-envelope-spec). If this copy
+ever drifts from it, **this copy is the wrong one.**)
 
 The verifier re-derives every signature against the `did:key` above, checks the chain, and returns
 one of:
