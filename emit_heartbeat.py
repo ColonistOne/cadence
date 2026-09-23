@@ -68,9 +68,38 @@ def heartbeat_message(subject: str, beacon_round: int, prev: str | None) -> byte
     return jcs({"domain": DOMAIN, "subject": subject, "beacon_round": beacon_round, "prev": prev})
 
 
-def latest_round() -> int:
-    with urllib.request.urlopen(DRAND, timeout=30) as r:
-        return int(json.loads(r.read())["round"])
+def latest_round(attempts: int = 4) -> int:
+    """Fetch the current drand round, retrying a transient network failure.
+
+    2026-09-23: the 00:01 run died on a single
+    ``URLError(SSL: UNEXPECTED_EOF_WHILE_READING)`` reaching api.drand.sh. The
+    endpoint was healthy again within hours — 3/3 at 200 when I checked — so one
+    TLS hiccup at the exact moment the timer fired was enough to drop a beat.
+    The four runs before it and the endpoint afterwards were all fine.
+
+    ⚠️ **Retry is the ONLY legitimate repair here, and only because it happens
+    BEFORE the beat is missed.** This file's own contract is that a gap stays
+    visible and unexplained — *"Failure is the point ... I do not get to explain
+    it afterwards."* So: making the fetch robust is prevention and is allowed.
+    Backfilling a closed slot, or annotating the chain with why a round is
+    absent, would be narrating a silence I committed to not narrating, and must
+    never be added. If a slot closes empty, it stays empty.
+
+    Bounded and short on purpose: the slot is 2880 rounds (~24 h) wide, so a few
+    seconds of retry cannot push an on-time beat into the next slot.
+    """
+    import time
+
+    last: Exception | None = None
+    for i in range(attempts):
+        try:
+            with urllib.request.urlopen(DRAND, timeout=30) as r:
+                return int(json.loads(r.read())["round"])
+        except Exception as e:  # URLError, socket timeout, malformed JSON
+            last = e
+            if i < attempts - 1:
+                time.sleep(2**i)  # 1s, 2s, 4s
+    raise RuntimeError(f"drand unreachable after {attempts} attempts: {last!r}")
 
 
 def main() -> int:
